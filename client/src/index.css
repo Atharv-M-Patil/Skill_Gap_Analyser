@@ -33,30 +33,29 @@
 }
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.85rem;
 }
 
 .dark, :root {
-  --background: 222 20% 6%;
-  --foreground: 210 20% 94%;
+  --background: 220 32% 7%;
+  --foreground: 210 25% 96%;
 
-  --card: 222 18% 9%;
+  --card: 220 26% 11%;
   --card-foreground: 210 20% 94%;
-
   --popover: 222 18% 9%;
   --popover-foreground: 210 20% 94%;
 
-  --primary: 258 80% 62%;
+  --primary: 160 84% 45%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 222 14% 14%;
+  --secondary: 220 21% 16%;
   --secondary-foreground: 210 20% 90%;
 
-  --muted: 222 14% 13%;
-  --muted-foreground: 215 12% 52%;
+  --muted: 220 18% 15%;
+  --muted-foreground: 215 15% 61%;
 
-  --accent: 196 80% 55%;
-  --accent-foreground: 222 20% 6%;
+  --accent: 42 94% 63%;
+  --accent-foreground: 220 32% 7%;
 
   --destructive: 0 65% 48%;
   --destructive-foreground: 0 0% 100%;
@@ -70,19 +69,28 @@
   * { @apply border-border; }
   body {
     @apply font-sans antialiased bg-background text-foreground text-sm;
+    background-image: radial-gradient(circle at 15% 0%, hsl(160 84% 45% / .09), transparent 28rem), radial-gradient(circle at 90% 30%, hsl(42 94% 63% / .06), transparent 24rem);
+    background-attachment: fixed;
   }
-  h1 { @apply text-2xl font-semibold tracking-tight; }
+  h1 { @apply text-2xl font-semibold tracking-[-0.03em]; }
   h2 { @apply text-lg font-semibold tracking-tight; }
   h3 { @apply text-base font-medium; }
 }
 
 @layer utilities {
   .glass {
-    @apply bg-card/60 backdrop-blur-md border border-white/[0.06] shadow-xl;
+    @apply bg-card/80 backdrop-blur-xl border border-white/[0.08] shadow-2xl shadow-black/20;
   }
   .glass-hover {
-    @apply transition-all duration-200 hover:border-primary/25 hover:bg-card/80;
+    @apply transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:bg-card;
   }
+
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-primary; }
+  .page-shell { @apply min-h-screen bg-background; }
+  .page-content { @apply mx-auto w-full max-w-7xl px-5 py-10 lg:px-8; }
+  .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 hover:brightness-110; }
+  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white/[0.08]; }
+  .input-modern { @apply w-full rounded-lg border border-white/10 bg-black/10 px-3.5 py-3 text-sm outline-none transition placeholder:text-muted-foreground/60 focus:border-primary/70 focus:ring-2 focus:ring-primary/10; }
   .gradient-text {
     @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
   }

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogIn, UserPlus, ArrowRight } from "lucide-react";
 
-type AuthConfig = { googleConfigured: boolean; demoAuthEnabled: boolean; localAuthEnabled: boolean };
+type AuthConfig = { demoAuthEnabled: boolean; localAuthEnabled: boolean };
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -20,9 +20,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const errorParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("error") : null;
-  const errorMsg = errorParam === "google_not_configured" ? "Google sign-in is not configured."
-    : errorParam === "google_auth_failed" ? "Google authentication failed."
-    : errorParam ? "Sign-in failed. Please try again." : null;
+  const errorMsg = errorParam ? "Sign-in failed. Please try again." : null;
+  const nextPath = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("next") || "/student"
+    : "/student";
 
   useEffect(() => {
     fetch("/api/auth/config", { credentials: "include" })
@@ -45,7 +46,7 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({})) as { message?: string };
       if (!res.ok) { setError(data.message || "Authentication failed."); return; }
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      setLocation("/builder");
+      setLocation(nextPath.startsWith("/") ? nextPath : "/student");
     } finally {
       setLoading(false);
     }
@@ -73,8 +74,8 @@ export default function LoginPage() {
               <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-3 py-2">
                 Signed in as {user?.displayName || user?.email}
               </p>
-              <button onClick={() => setLocation("/builder")} className="w-full flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                Go to Builder <ArrowRight className="w-3.5 h-3.5" />
+              <button onClick={() => setLocation(nextPath.startsWith("/") ? nextPath : "/student")} className="w-full flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                Continue <ArrowRight className="w-3.5 h-3.5" />
               </button>
               <button onClick={handleLogout} className="w-full py-2 rounded-md text-xs font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
                 Logout
@@ -136,30 +137,20 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <button
-                  onClick={() => { window.location.href = `/api/auth/google?next=${encodeURIComponent("/builder")}`; }}
-                  disabled={!config?.googleConfigured}
-                  className="w-full py-2 rounded-md text-xs font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Continue with Google
-                </button>
-                {config?.demoAuthEnabled && !config?.googleConfigured && (
+              <div className="space-y-3">
+                {config?.demoAuthEnabled && (
                   <button
                     onClick={async () => {
                       const res = await fetch("/api/auth/dev-login", { method: "POST", credentials: "include" });
-                      if (res.ok) { await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] }); setLocation("/builder"); }
+                      if (res.ok) { await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] }); setLocation(nextPath.startsWith("/") ? nextPath : "/student"); }
                     }}
-                    className="w-full py-2 rounded-md text-xs font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                    className="w-full rounded-lg border border-white/10 bg-white/[0.04] py-3 text-sm font-medium transition hover:bg-white/[0.08]"
                   >
                     Continue in Demo Mode
                   </button>
                 )}
               </div>
 
-              {!config?.googleConfigured && (
-                <p className="text-xs text-muted-foreground/60">Google login requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars.</p>
-              )}
             </>
           )}
         </div>

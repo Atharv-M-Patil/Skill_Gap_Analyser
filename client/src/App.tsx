@@ -9,6 +9,10 @@ import Home from "@/pages/Home";
 import BuilderPage from "@/pages/builder";
 import ScreenerPage from "@/pages/screener";
 import LoginPage from "@/pages/login";
+import JobsPage from "@/pages/jobs";
+import StudentPage from "@/pages/student";
+import JobDetailPage from "@/pages/job-detail";
+import ResumePage from "@/pages/resume";
 
 function Router() {
   return (
@@ -17,6 +21,11 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/builder" component={BuilderPage} />
       <Route path="/screener" component={ScreenerPage} />
+      <Route path="/jobs" component={JobsPage} />
+      <Route path="/jobs/:jobId/analyze" component={() => <JobDetailPage analyze />} />
+      <Route path="/jobs/:jobId" component={() => <JobDetailPage />} />
+      <Route path="/student" component={StudentPage} />
+      <Route path="/resume" component={ResumePage} />
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>

@@ -1,10 +1,9 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import passport from "passport";
-import { Strategy as GoogleStrategy, type Profile } from "passport-google-oauth20";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
 type AuthUser = {
@@ -12,7 +11,119 @@ type AuthUser = {
   displayName: string;
   email: string;
   photo?: string;
+  role: "student" | "officer";
 };
+
+const skillAliases: Record<string, string> = {
+  javascript: "javascript", js: "javascript", typescript: "typescript", ts: "typescript",
+  postgres: "postgresql", postgresql: "postgresql", "amazon web services": "aws", aws: "aws",
+  "node.js": "node.js", nodejs: "node.js", reactjs: "react", "react.js": "react",
+  "rest api": "rest apis", "restful apis": "rest apis",
+};
+
+function normalizeSkill(skill: string) {
+  const cleaned = skill.toLowerCase().replace(/[.,]/g, "").trim();
+  return skillAliases[cleaned] || cleaned;
+}
+
+function skillsFromJobDescription(description: string) {
+  const required: string[] = [];
+  const requiredPattern = /(?:Hands-on with|Strong knowledge of)\s+([^\n]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = requiredPattern.exec(description))) {
+    required.push(match[1].trim().replace(/[.]$/, ""));
+  }
+  const preferred = description.split(/Good to Have:/i)[1]?.split("\n").map((line) => line.replace(/^- /, "").trim()).filter(Boolean) || [];
+  return { required: Array.from(new Set(required)), preferred: Array.from(new Set(preferred)) };
+}
+
+function profileSkills(data: Record<string, unknown>) {
+  const values: string[] = [];
+  const collect = (value: unknown) => {
+    if (typeof value === "string") values.push(value);
+    if (Array.isArray(value)) value.forEach(collect);
+    if (value && typeof value === "object") Object.values(value).forEach(collect);
+  };
+  collect(data.skills);
+  collect(data.projects);
+  collect(data.certifications);
+  collect(data.internships);
+  return new Set(values.flatMap((value) => value.split(/[,;|]/).map(normalizeSkill)));
+}
+
+const learningResources: Record<string, { resource: string; url: string; project: string }> = {
+  aws: { resource: "AWS Skill Builder", url: "https://skillbuilder.aws/", project: "Deploy a containerized API with IAM and CloudWatch." },
+  kubernetes: { resource: "Kubernetes Basics", url: "https://kubernetes.io/docs/tutorials/kubernetes-basics/", project: "Deploy a multi-service app with a local Kubernetes cluster." },
+  java: { resource: "Dev.java Learning", url: "https://dev.java/learn/", project: "Build a REST service with validation and tests." },
+  "spring boot": { resource: "Spring Guides", url: "https://spring.io/guides", project: "Create a Spring Boot CRUD API backed by PostgreSQL." },
+  sql: { resource: "SQLBolt", url: "https://sqlbolt.com/", project: "Model and query an analytics dataset with joins and indexes." },
+  react: { resource: "React Learn", url: "https://react.dev/learn", project: "Build a data-driven dashboard with loading and error states." },
+  typescript: { resource: "TypeScript Handbook", url: "https://www.typescriptlang.org/docs/handbook/intro.html", project: "Convert a small JavaScript app to strict TypeScript." },
+};
+
+function buildAnalysis(job: Awaited<ReturnType<typeof storage.getJobPosting>>, resume: Awaited<ReturnType<typeof storage.getLatestResume>>, profile: Awaited<ReturnType<typeof storage.getStudentProfile>>) {
+  if (!job || !resume) return undefined;
+  const { required, preferred } = skillsFromJobDescription(job.jobDescription);
+  const resumeData = (resume.data || {}) as Record<string, unknown>;
+  const resumeText = String(resumeData.extractedText || "").toLowerCase();
+  const explicitSkills = profileSkills((profile?.data || {}) as Record<string, unknown>);
+  const evidenceFor = (skill: string) => {
+    const normalized = normalizeSkill(skill);
+    if (explicitSkills.has(normalized)) return "Explicitly listed in your profile.";
+    if (resumeText.includes(normalized)) return "Detected in the uploaded resume text.";
+    return "";
+  };
+  const classified = [...required.map((skill) => ({ skill, type: "required" })), ...preferred.map((skill) => ({ skill, type: "preferred" }))].map((item) => {
+    const evidence = evidenceFor(item.skill);
+    if (explicitSkills.has(normalizeSkill(item.skill))) return { kind: "matched" as const, item: { ...item, evidence, reason: "The skill is explicitly recorded in your student profile." } };
+    if (evidence) return { kind: "partial" as const, item: { ...item, evidence, reason: "The keyword appears in the resume, but no structured project or experience evidence is recorded." } };
+    return { kind: "missing" as const, item: { ...item, nextStep: learningResources[normalizeSkill(item.skill)]?.project || `Add a project or experience example demonstrating ${item.skill}.` } };
+  });
+  const matchedSkills = classified.filter((item) => item.kind === "matched").map((item) => item.item);
+  const partialSkills = classified.filter((item) => item.kind === "partial").map((item) => item.item);
+  const missingSkills = classified.filter((item) => item.kind === "missing").map((item) => item.item);
+  const requiredScore = required.length ? (required.filter((skill) => explicitSkills.has(normalizeSkill(skill))).length + required.filter((skill) => !explicitSkills.has(normalizeSkill(skill)) && evidenceFor(skill)).length * 0.5) / required.length : 0;
+  const preferredScore = preferred.length ? (preferred.filter((skill) => explicitSkills.has(normalizeSkill(skill))).length + preferred.filter((skill) => !explicitSkills.has(normalizeSkill(skill)) && evidenceFor(skill)).length * 0.5) / preferred.length : requiredScore;
+  const keywordList = [...required, ...preferred];
+  const keywordMatches = keywordList.filter((skill) => resumeText.includes(normalizeSkill(skill)));
+  const keywordCoverage = keywordList.length ? Math.round((keywordMatches.length / keywordList.length) * 100) : 0;
+  const skillMatchScore = Math.round((requiredScore * 80 + preferredScore * 20) * 100) / 100;
+  const atsScore = Math.round((keywordCoverage * 0.6) + (skillMatchScore * 0.4));
+  const profileData = (profile?.data || {}) as Record<string, any>;
+  const educationText = `${profileData.education?.degree || ""} ${profileData.education?.branch || ""}`.toLowerCase();
+  return {
+    atsScore, skillMatchScore, matchedSkills, partialSkills, missingSkills, keywordCoverage,
+    keywordMatches, missingKeywords: keywordList.filter((skill) => !resumeText.includes(normalizeSkill(skill))),
+    eligibility: {
+      degree: educationText ? (job.education.toLowerCase().includes("b.tech") && /b\.?tech|b\.?e|mca/.test(educationText) ? "Potentially eligible" : "Unknown / verify degree") : "Unknown / insufficient information",
+      branch: educationText ? (/computer|software|information|it/.test(educationText) ? "Potentially eligible" : "Unknown / verify branch") : "Unknown / insufficient information",
+      experience: "Unknown / insufficient information",
+    },
+    suggestions: [
+      ...(missingSkills.length ? [`Add evidence for ${missingSkills.slice(0, 3).map((item) => item.skill).join(", ")} through a project or experience.`] : []),
+      ...(keywordCoverage < 70 ? ["Use the selected job's language naturally in relevant resume bullets."] : []),
+      ...(resumeText.length < 400 ? ["Add measurable outcomes and context to your resume sections."] : []),
+    ],
+    learningRecommendations: missingSkills.map((item) => ({ skill: item.skill, ...(learningResources[normalizeSkill(item.skill)] || { resource: "Practice project", url: "https://roadmap.sh/", project: item.nextStep }) })),
+  };
+}
+
+function requireAuth(req: Request, res: Response) {
+  if (!req.isAuthenticated?.()) {
+    res.status(401).json({ message: "Not authenticated" });
+    return false;
+  }
+  return true;
+}
+
+function requireOfficer(req: Request, res: Response) {
+  if (!requireAuth(req, res)) return false;
+  if (req.user?.role !== "officer") {
+    res.status(403).json({ message: "Placement officer access required" });
+    return false;
+  }
+  return true;
+}
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -46,7 +157,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
   const demoAuthEnabled = process.env.NODE_ENV !== "production";
   const localAuthEnabled = true;
 
@@ -82,33 +192,9 @@ export async function registerRoutes(
     done(null, user);
   });
 
-  if (googleConfigured) {
-    const googleClientId = process.env.GOOGLE_CLIENT_ID as string;
-    const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET as string;
-
-    passport.use(
-      new GoogleStrategy(
-        {
-          clientID: googleClientId,
-          clientSecret: googleClientSecret,
-          callbackURL: "/api/auth/google/callback",
-        },
-        (_accessToken: string, _refreshToken: string, profile: Profile, done: (error: unknown, user?: AuthUser) => void) => {
-          const user: AuthUser = {
-            id: profile.id,
-            displayName: profile.displayName,
-            email: profile.emails?.[0]?.value || "",
-            photo: profile.photos?.[0]?.value,
-          };
-          done(null, user);
-        },
-      ),
-    );
-  }
-
   app.get("/api/auth/me", (req, res) => {
     if (!req.isAuthenticated || !req.isAuthenticated()) {
-      return res.status(401).json({ authenticated: false });
+      return res.status(200).json({ authenticated: false });
     }
 
     return res.status(200).json({
@@ -119,7 +205,6 @@ export async function registerRoutes(
 
   app.get("/api/auth/config", (_req, res) => {
     res.status(200).json({
-      googleConfigured,
       demoAuthEnabled,
       localAuthEnabled,
     });
@@ -157,6 +242,7 @@ export async function registerRoutes(
         id: created.id,
         displayName: displayName || email.split("@")[0],
         email,
+        role: "student",
       };
 
       req.logIn(authUser, (err) => {
@@ -192,6 +278,7 @@ export async function registerRoutes(
         id: user.id,
         displayName: email.split("@")[0],
         email,
+        role: "student",
       };
 
       req.logIn(authUser, (err) => {
@@ -203,55 +290,6 @@ export async function registerRoutes(
     } catch (error) {
       return next(error);
     }
-  });
-
-  app.get("/api/auth/google", (req, res, next) => {
-    if (!googleConfigured) {
-      return res.redirect("/login?error=google_not_configured");
-    }
-
-    const nextPath = typeof req.query.next === "string" ? req.query.next : "/builder";
-    const state = Buffer.from(JSON.stringify({ next: nextPath })).toString("base64url");
-
-    passport.authenticate("google", {
-      scope: ["profile", "email"],
-      state,
-    })(req, res, next);
-  });
-
-  app.get("/api/auth/google/callback", (req, res, next) => {
-    passport.authenticate("google", { failureRedirect: "/login?error=google_auth_failed" }, (err: unknown, user?: Express.User) => {
-      if (err) {
-        return next(err);
-      }
-
-      if (!user) {
-        return res.redirect("/login?error=google_auth_failed");
-      }
-
-      req.logIn(user, (loginErr) => {
-        if (loginErr) {
-          return next(loginErr);
-        }
-
-        let redirectPath = "/builder";
-        const encodedState = typeof req.query.state === "string" ? req.query.state : "";
-        if (encodedState) {
-          try {
-            const parsed = JSON.parse(Buffer.from(encodedState, "base64url").toString("utf8")) as {
-              next?: string;
-            };
-            if (parsed.next && parsed.next.startsWith("/")) {
-              redirectPath = parsed.next;
-            }
-          } catch {
-            // Ignore invalid state payload and use default route.
-          }
-        }
-
-        return res.redirect(redirectPath);
-      });
-    })(req, res, next);
   });
 
   app.post("/api/auth/logout", (req, res, next) => {
@@ -279,6 +317,7 @@ export async function registerRoutes(
       id: "dev-user",
       displayName: "Demo User",
       email: "demo@resumehub.local",
+      role: "student",
     };
 
     req.logIn(demoUser, (err) => {
@@ -313,6 +352,124 @@ export async function registerRoutes(
         message: "Storage dependency check failed",
       });
     }
+  });
+
+  app.get("/api/jobs", async (req, res, next) => {
+        try {
+          const jobs = await storage.listJobPostings();
+          const query = String(req.query.search || "").toLowerCase().trim();
+          const role = String(req.query.role || "").toLowerCase().trim();
+          const company = String(req.query.company || "").toLowerCase().trim();
+          const location = String(req.query.location || "").toLowerCase().trim();
+          const filtered = jobs.filter((job) => {
+            const haystack = `${job.jobTitle} ${job.company} ${job.roleCategory} ${job.location}`.toLowerCase();
+            return (!query || haystack.includes(query))
+              && (!role || job.roleCategory.toLowerCase() === role)
+              && (!company || job.company.toLowerCase().includes(company))
+              && (!location || job.location.toLowerCase().includes(location));
+          });
+
+          return res.json(filtered.map((job) => ({ ...job, ...skillsFromJobDescription(job.jobDescription), representative: job.dataSource === "synthetic_representative" })));
+        } catch (error) {
+          return next(error);
+        }
+  });
+
+  app.get("/api/platform/stats", async (_req, res) => {
+    const jobs = await storage.listJobPostings();
+    return res.json({
+      postings: jobs.length,
+      companies: new Set(jobs.map((job) => job.company)).size,
+      roleFamilies: new Set(jobs.map((job) => job.roleCategory)).size,
+    });
+  });
+
+  app.get("/api/jobs/:jobId", async (req, res, next) => {
+        try {
+          const job = await storage.getJobPosting(req.params.jobId);
+          if (!job) return res.status(404).json({ message: "Job posting not found" });
+          return res.json({ ...job, ...skillsFromJobDescription(job.jobDescription), representative: job.dataSource === "synthetic_representative" });
+        } catch (error) {
+          return next(error);
+        }
+  });
+
+  app.get("/api/student/profile", async (req, res) => {
+        if (!requireAuth(req, res)) return;
+        return res.json(await storage.getStudentProfile(req.user!.id) || { userId: req.user!.id, data: {}, completionPercent: 0 });
+  });
+
+  app.put("/api/student/profile", async (req, res, next) => {
+        try {
+          if (!requireAuth(req, res)) return;
+          if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+            return res.status(400).json({ message: "Profile data must be an object." });
+          }
+          const profile = await storage.saveStudentProfile(req.user!.id, req.body);
+          return res.json(profile);
+        } catch (error) {
+          return next(error);
+        }
+  });
+
+  app.get("/api/jobs/:jobId/analyze", async (req, res, next) => {
+        try {
+          if (!requireAuth(req, res)) return;
+          const job = await storage.getJobPosting(req.params.jobId);
+          if (!job) return res.status(404).json({ message: "Job posting not found" });
+          const profile = await storage.getStudentProfile(req.user!.id);
+          const resume = await storage.getLatestResume(req.user!.id);
+          if (!resume) return res.status(409).json({ message: "Upload a resume before analyzing this job.", code: "RESUME_REQUIRED" });
+          const report = buildAnalysis(job, resume, profile);
+          if (!report) return res.status(422).json({ message: "Unable to analyze this resume." });
+          const saved = await storage.saveAnalysisReport(req.user!.id, job.jobId, resume.id, report);
+          return res.json({ id: saved.id, jobId: job.jobId, resumeId: resume.id, resumeName: resume.name, createdAt: saved.createdAt, ...report });
+        } catch (error) {
+          return next(error);
+        }
+  });
+
+  app.get("/api/student/resume", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const resume = await storage.getLatestResume(req.user!.id);
+    return res.json(resume ? { id: resume.id, name: resume.name, updatedAt: resume.updatedAt, extractedText: String((resume.data as Record<string, unknown>).extractedText || "") } : null);
+  });
+
+  app.get("/api/student/analyses", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    return res.json(await storage.getAnalysisHistory(req.user!.id));
+  });
+
+  app.get("/api/student/analyses/:id", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const report = await storage.getAnalysisReport(req.user!.id, req.params.id);
+    if (!report) return res.status(404).json({ message: "Analysis report not found" });
+    return res.json(report);
+  });
+
+  app.get("/api/student/analytics", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const resume = await storage.getLatestResume(req.user!.id);
+    const history = await storage.getAnalysisHistory(req.user!.id);
+    const latest = history[0];
+    return res.json({
+      hasResume: Boolean(resume),
+      resumeName: resume?.name,
+      latestAnalysis: latest ? { id: latest.id, jobId: latest.jobId, ...(latest.report as Record<string, unknown>) } : null,
+      analyses: history.slice(0, 5).map((item) => ({ id: item.id, jobId: item.jobId, createdAt: item.createdAt, atsScore: (item.report as Record<string, unknown>).atsScore, skillMatchScore: (item.report as Record<string, unknown>).skillMatchScore })),
+    });
+  });
+
+  app.get("/api/officer/summary", async (req, res) => {
+        if (!requireOfficer(req, res)) return;
+        const jobs = await storage.listJobPostings();
+        return res.json({
+          totalJobs: jobs.length,
+          activeJobs: jobs.filter((job) => job.status === "active").length,
+          companies: new Set(jobs.map((job) => job.company)).size,
+          roleCategories: new Set(jobs.map((job) => job.roleCategory)).size,
+          dataSource: "Data/job_postings_dataset.json",
+        });
   });
 
   // ── Resume CRUD ──────────────────────────────────────────────────────────────

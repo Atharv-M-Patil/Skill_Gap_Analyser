@@ -88,7 +88,7 @@ ResumeHub addresses these challenges by generating ATS-friendly resumes and prov
 ## 🔐 Authentication
 
 - Email & Password Login
-- Google OAuth Authentication
+- Email/password and demo authentication
 - Session Management
 
 ---
@@ -168,7 +168,7 @@ Suggestions --> Dashboard
 | Frontend | React 19 + TypeScript | Modern User Interface |
 | Styling | Tailwind CSS + Radix UI | Responsive UI Components |
 | Backend | Express.js | REST APIs |
-| Authentication | Passport.js | Google OAuth & Local Login |
+| Authentication | Passport.js | Local login and sessions |
 | Database | PostgreSQL | User & Resume Storage |
 | ORM | Drizzle ORM | Database Management |
 | Resume Parsing | pdfjs-dist, Mammoth | PDF & DOCX Processing |
@@ -290,7 +290,7 @@ The final score is generated after combining all weighted metrics and producing 
 
 # 🔒 Security
 
-- Google OAuth Authentication
+- Email/password authentication
 - Session-based Authentication
 - Password Encryption
 - Input Validation
@@ -330,10 +330,6 @@ npm install
 
 ```env
 DATABASE_URL=
-
-GOOGLE_CLIENT_ID=
-
-GOOGLE_CLIENT_SECRET=
 
 SESSION_SECRET=
 ```
@@ -399,7 +395,7 @@ Ensures reliable relational storage for user accounts, resumes, and ATS reports 
 
 ### Why Passport.js?
 
-Simplifies authentication by supporting both Google OAuth and traditional email/password login through a well-established middleware ecosystem.
+Simplifies authentication by supporting traditional email/password login and secure sessions through a well-established middleware ecosystem.
 
 ### Biggest Challenge
 
