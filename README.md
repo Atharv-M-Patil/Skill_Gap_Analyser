@@ -438,7 +438,71 @@ npm run db:push   # Push the Drizzle schema to PostgreSQL
 
 ---
 
-## 12. Persistence and deployment status
+## 12. Deploy to Render
+
+The repository includes a Render Blueprint at [`render.yaml`](./render.yaml). It configures a Node web service with:
+
+- `npm ci && npm run build` as the build command,
+- `npm run start` as the production start command,
+- `NODE_ENV=production`,
+- an automatically generated `SESSION_SECRET`, and
+- `/api/health` as the health-check endpoint.
+
+### Option A: Deploy with the Blueprint
+
+1. Push the repository to GitHub.
+2. Open the [Render Dashboard](https://dashboard.render.com/).
+3. Select **New → Blueprint**.
+4. Connect the `Atharv-M-Patil/Skill_Gap_Analyser` repository.
+5. Select the branch containing `render.yaml`, normally `main`.
+6. Review the service settings and click **Apply**.
+7. Wait for the build to finish.
+8. Open the generated `onrender.com` URL and verify the landing page.
+9. Verify the health endpoint at:
+
+   ```text
+   https://YOUR-SERVICE-NAME.onrender.com/api/health
+   ```
+
+### Option B: Create the service manually
+
+Use these Render web-service settings:
+
+| Setting | Value |
+|---|---|
+| Runtime | Node |
+| Build command | `npm ci && npm run build` |
+| Start command | `npm run start` |
+| Health check path | `/api/health` |
+| Node version | `20` or newer |
+| `NODE_ENV` | `production` |
+| `SESSION_SECRET` | A long random secret |
+
+Render automatically supplies the `PORT` variable. The server listens on that port and on `0.0.0.0`, which is required for public Render traffic.
+
+### Important deployment limitation
+
+The current application uses in-memory `MemStorage` at runtime. On Render, data can be lost when the service restarts, redeploys, or is moved to another instance. This affects:
+
+- registered users,
+- sessions,
+- uploaded resumes,
+- student profiles, and
+- saved analysis reports.
+
+The 150-job dataset is safe because it is loaded from the repository at startup. For a production deployment with persistent student accounts and reports, connect the existing Drizzle schema to a managed PostgreSQL database and use a PostgreSQL-backed storage implementation.
+
+### Render deployment troubleshooting
+
+- **Build fails:** confirm the service is using Node 20 or newer and that `package-lock.json` is committed.
+- **Service fails to start:** check the Render logs for the `npm run start` command and confirm the build produced `dist/index.cjs`.
+- **Health check fails:** open `/api/health`; the endpoint should return a successful JSON response without authentication.
+- **Users are logged out after a restart:** this is expected while sessions use the in-memory session store.
+- **Resume data disappears:** this is expected while application data uses `MemStorage`.
+
+---
+
+## 13. Persistence and deployment status
 
 The project currently uses `MemStorage` at runtime. This is intentional for easy local demonstration:
 
@@ -460,7 +524,7 @@ Before production deployment, the storage interface should be connected to persi
 
 ---
 
-## 13. Security behavior
+## 14. Security behavior
 
 - Protected student endpoints require an authenticated session.
 - Resume, profile, analytics, and report queries are scoped to the authenticated user ID.
@@ -474,7 +538,7 @@ Before production deployment, the storage interface should be connected to persi
 
 ---
 
-## 14. Validation
+## 15. Validation
 
 Run the following before submitting changes:
 
@@ -488,7 +552,7 @@ The production build may report a warning about large client chunks; this does n
 
 ---
 
-## 15. Roadmap
+## 16. Roadmap
 
 The current foundation is ready for the next product phase:
 
