@@ -1,412 +1,278 @@
-# 📄 ResumeHub – AI-Powered Resume Builder & ATS Tracker
+# ResumeHub — Career Intelligence Platform
 
-> An intelligent resume builder that helps job seekers create professional resumes, optimize them for Applicant Tracking Systems (ATS), and improve interview chances using AI-powered resume enhancement and ATS analysis.
+ResumeHub is a full-stack career intelligence platform for students. It combines resume building, ATS screening, job discovery, personalized resume-to-job analysis, skill-gap identification, and placement-readiness tracking in one application.
 
-<p align="center">
+The project is built as an academic mini project under **REVA University**.
 
-[![Live Demo](https://img.shields.io/badge/Live-Demo-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://resume-builder-and-ats-tracker-1.onrender.com)
-![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+## What the application provides
 
-</p>
+### Student experience
 
----
+- Resume builder with live preview and PDF export
+- PDF, DOCX, and text resume upload
+- One-time resume storage per authenticated student
+- Resume text extraction with `pdfjs-dist` and `mammoth`
+- ATS resume screening against pasted job descriptions
+- Opportunity library with 150 individual job postings
+- Exact job lookup using unique identifiers such as `JD001`
+- Personalized resume-to-job analysis
+- Required and preferred skill comparison
+- Matched, partially demonstrated, and missing skill classifications
+- ATS score and keyword coverage
+- Skill-match score using required/preferred weighting
+- Education and branch eligibility signals
+- Resume improvement suggestions
+- Curated learning resources and project recommendations
+- Student dashboard with profile completion and analysis history
 
-# 📑 Table of Contents
+### Opportunity library
 
-- Overview
-- Demo
-- System Architecture
-- Tech Stack
-- Project Structure
-- Database Design
-- API Overview
-- Key Features
-- ATS Scoring Algorithm
-- Security
-- Performance & Scalability
-- Installation
-- Deployment
-- Future Improvements
-- Interview Talking Points
+The included dataset is [Data/job_postings_dataset.json](./Data/job_postings_dataset.json).
 
----
+- 150 postings
+- 25 companies
+- 6 role families
+- Every posting remains an individual record
+- Duplicate job titles are not merged
+- `job_id` is the unique posting identifier
+- Synthetic records are labeled as representative data
 
-# 🚀 Overview
+### Authentication
 
-ResumeHub is an AI-powered web application that enables users to build professional resumes, evaluate them using a custom Applicant Tracking System (ATS), and optimize resumes for specific job descriptions.
+- Email/password registration
+- Email/password login
+- Session-based authentication
+- Development Demo Mode
+- User-owned resume and analysis access
+- No Google OAuth dependency
 
-The platform combines modern frontend technologies, backend services, document parsing, authentication, and AI-assisted content generation to provide a complete resume optimization workflow.
+## Analysis workflow
 
----
-
-# ❓ Problem Statement
-
-Many job seekers submit resumes that fail Applicant Tracking Systems before reaching recruiters.
-
-Common problems include:
-
-- Poor resume formatting
-- Missing keywords
-- Weak project descriptions
-- Low ATS compatibility
-- Generic resume content
-
-ResumeHub addresses these challenges by generating ATS-friendly resumes and providing detailed scoring with personalized improvement suggestions.
-
----
-
-# ✨ Key Features
-
-## 📄 Resume Builder
-
-- Five Professional Resume Templates
-- AI-powered Resume Enhancement
-- Live Resume Preview
-- PDF Export
-- Resume Import (PDF & DOCX)
-- Automatic Data Extraction
-- Section-based Navigation
-- Persistent Form State
-
----
-
-## 📊 ATS Resume Screener
-
-- Resume Parsing (PDF & DOCX)
-- Job Description Analysis
-- ATS Compatibility Score
-- Keyword Matching
-- Resume Recommendations
-- Missing Skills Detection
-- Searchable ATS Reports
-
----
-
-## 🔐 Authentication
-
-- Email & Password Login
-- Email/password and demo authentication
-- Session Management
-
----
-
-# 🎥 Demo
-
-### 🌐 Live Application
-
-https://resume-builder-and-ats-tracker-1.onrender.com
-
-### Screenshots
-
-| Resume Builder | ATS Analysis |
-|---------------|--------------|
-| *(Add Screenshot)* | *(Add Screenshot)* |
-
-| Resume Preview | Dashboard |
-|----------------|-----------|
-| *(Add Screenshot)* | *(Add Screenshot)* |
-
----
-
-# 🏗️ System Architecture
-
-```mermaid
-flowchart LR
-
-A[User]
-
-A --> B[React Frontend]
-
-B --> C[Express Backend]
-
-C --> D[Authentication]
-
-C --> E[Resume Parser]
-
-C --> F[ATS Engine]
-
-C --> G[(PostgreSQL)]
-
-F --> H[AI Resume Suggestions]
-
-H --> B
-```
-
----
-
-# 🔄 Resume Processing Workflow
-
-```mermaid
-flowchart TD
-
-ResumeUpload --> PDF_DOCX_Parser
-
-PDF_DOCX_Parser --> ResumeText
-
-ResumeText --> ATSScoring
-
-JobDescription --> ATSScoring
-
-ATSScoring --> KeywordMatching
-
-KeywordMatching --> FinalScore
-
-FinalScore --> Suggestions
-
-Suggestions --> Dashboard
-```
-
----
-
-# 🛠️ Tech Stack
-
-| Layer | Technology | Purpose |
-|--------|------------|----------|
-| Frontend | React 19 + TypeScript | Modern User Interface |
-| Styling | Tailwind CSS + Radix UI | Responsive UI Components |
-| Backend | Express.js | REST APIs |
-| Authentication | Passport.js | Local login and sessions |
-| Database | PostgreSQL | User & Resume Storage |
-| ORM | Drizzle ORM | Database Management |
-| Resume Parsing | pdfjs-dist, Mammoth | PDF & DOCX Processing |
-| AI | OpenAI APIs (Optional) | Resume Enhancement |
-| Animation | Framer Motion | Smooth User Experience |
-
----
-
-# 📂 Project Structure
+The main workflow is:
 
 ```text
-ResumeHub
-│
+Register or sign in
+        ↓
+Upload a resume once
+        ↓
+Open the Opportunity Library
+        ↓
+Select a specific job, for example JD001
+        ↓
+Choose Analyze My Resume
+        ↓
+ResumeHub loads the student's saved resume and profile
+        ↓
+ResumeHub compares the resume against that exact job
+        ↓
+Personalized ATS, skill-gap, eligibility, and learning report
+```
+
+Details and analysis are intentionally separate:
+
+```text
+/jobs/JD001              Job details
+/jobs/JD001/analyze      Personalized analysis for JD001
+```
+
+The analysis does not use the job title as an identifier and does not merge postings from different companies.
+
+## Score definitions
+
+ResumeHub keeps the following metrics separate:
+
+| Metric | Meaning |
+|---|---|
+| ATS score | How closely the saved resume matches the selected job's language and keywords |
+| Keyword coverage | Percentage of selected job keywords found in the resume text |
+| Skill match | Demonstrated required and preferred skills, with partial evidence receiving partial credit |
+| Profile completion | How many student profile sections have been completed |
+
+The skill-match weighting is:
+
+- Required skills: 80%
+- Preferred skills: 20%
+- Resume-only keyword mentions are classified as partial evidence unless supported by profile data
+
+## Main routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Career intelligence landing page |
+| `/login` | Email/password login, registration, and Demo Mode |
+| `/student` | Student dashboard |
+| `/resume` | Upload and replace the saved resume |
+| `/builder` | Resume builder |
+| `/screener` | ATS screener for pasted/uploaded content |
+| `/jobs` | Opportunity library |
+| `/jobs/:jobId` | Individual job details |
+| `/jobs/:jobId/analyze` | Personalized analysis for the selected job |
+
+## API overview
+
+### Authentication
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/auth/me` | Read current session state |
+| `GET` | `/api/auth/config` | Read enabled local/demo authentication options |
+| `POST` | `/api/auth/register` | Register a student |
+| `POST` | `/api/auth/login` | Sign in |
+| `POST` | `/api/auth/logout` | End the current session |
+| `POST` | `/api/auth/dev-login` | Development-only Demo Mode |
+
+### Jobs and analysis
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/jobs` | List and search job postings |
+| `GET` | `/api/jobs/:jobId` | Read one exact job posting |
+| `GET` | `/api/jobs/:jobId/analyze` | Generate and save a personalized report |
+| `GET` | `/api/platform/stats` | Read platform-level job statistics |
+
+### Student data
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/student/profile` | Read the current student's profile |
+| `PUT` | `/api/student/profile` | Save the current student's profile |
+| `GET` | `/api/student/resume` | Read the current student's latest resume |
+| `GET` | `/api/student/analytics` | Read dashboard metrics and recent analyses |
+| `GET` | `/api/student/analyses` | Read the current student's analysis history |
+| `GET` | `/api/student/analyses/:id` | Read one owned analysis report |
+| `POST` | `/api/resumes` | Save an uploaded/extracted resume |
+| `GET` | `/api/resumes` | List the current student's resumes |
+| `PUT` | `/api/resumes/:id` | Update an owned resume |
+| `DELETE` | `/api/resumes/:id` | Delete an owned resume |
+
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Wouter |
+| Styling | Tailwind CSS v4, Radix UI, Framer Motion |
+| Backend | Node.js, Express 5, TypeScript |
+| Authentication | Passport session middleware, local authentication |
+| Resume parsing | `pdfjs-dist`, `mammoth` |
+| Resume export | `html2canvas`, `jspdf` |
+| Data validation | Zod, Drizzle Zod |
+| Database schema | Drizzle ORM and PostgreSQL definitions |
+| Runtime development storage | In-memory storage |
+
+## Project structure
+
+```text
+.
+├── Data/
+│   └── job_postings_dataset.json
 ├── client/
-│   ├── pages/
-│   ├── builder/
-│   ├── screener/
-│   ├── components/
-│   └── lib/
-│
+│   ├── public/
+│   └── src/
+│       ├── components/
+│       ├── hooks/
+│       ├── lib/
+│       └── pages/
+│           ├── builder/
+│           ├── job-detail.tsx
+│           ├── jobs.tsx
+│           ├── login.tsx
+│           ├── resume.tsx
+│           ├── screener/
+│           └── student.tsx
 ├── server/
-│   ├── routes/
-│   ├── storage/
-│   └── index.ts
-│
+│   ├── index.ts
+│   ├── routes.ts
+│   ├── static.ts
+│   ├── storage.ts
+│   └── vite.ts
 ├── shared/
-│
+│   └── schema.ts
+├── script/
+│   └── build.ts
+├── package.json
 └── README.md
 ```
 
-### Folder Responsibilities
+## Local setup
 
-| Folder | Responsibility |
-|----------|---------------|
-| client | React Frontend |
-| builder | Resume Builder |
-| screener | ATS Scoring Engine |
-| server | Express APIs |
-| routes | Authentication & APIs |
-| storage | Database Layer |
-| shared | Shared Types & Schemas |
+### Requirements
 
----
+- Node.js 20 or newer
+- npm
 
-# 🗄️ Database Design
-
-## Main Tables
-
-### Users
-
-| Field | Type |
-|---------|------|
-| id | UUID |
-| name | String |
-| email | String |
-
-### Resumes
-
-| Field | Type |
-|---------|------|
-| id | UUID |
-| user_id | UUID |
-| template | String |
-| resume_data | JSON |
-
-### ATS Reports
-
-| Field | Type |
-|---------|------|
-| id | UUID |
-| resume_id | UUID |
-| score | Integer |
-
-Relationship
-
-```
-User
-
-↓
-
-Resume
-
-↓
-
-ATS Report
-```
-
----
-
-# 🔗 API Overview
-
-| Endpoint | Method | Description |
-|------------|--------|-------------|
-| /login | POST | User Login |
-| /register | POST | Register User |
-| /builder | GET | Resume Builder |
-| /ats | POST | ATS Resume Analysis |
-| /upload | POST | Upload Resume |
-
----
-
-# 🧠 ATS Scoring Algorithm
-
-The ATS engine evaluates resumes using a weighted scoring system.
-
-| Factor | Weight |
-|----------|--------|
-| Skill & Keyword Match | 30% |
-| Section Completeness | 15% |
-| Action Verbs | 15% |
-| Quantified Achievements | 10% |
-| Role Alignment | 10% |
-| Education Match | 10% |
-| Keyword Density | 10% |
-
-The final score is generated after combining all weighted metrics and producing personalized improvement recommendations.
-
----
-
-# 🔒 Security
-
-- Email/password authentication
-- Session-based Authentication
-- Password Encryption
-- Input Validation
-- Secure File Upload
-- Environment Variables
-- SQL Injection Protection
-
----
-
-# ⚡ Performance & Scalability
-
-- Fast PDF Parsing
-- Efficient DOCX Processing
-- Modular React Components
-- Optimized ATS Scoring
-- Lazy Component Rendering
-- PostgreSQL Database
-- Easily Extendable to Cloud Storage
-
----
-
-# 🚀 Installation
-
-### Clone Repository
-
-```bash
-git clone https://github.com/chandanm0005/Resume-Builder-and-Ats-Tracker.git
-```
-
-### Install Dependencies
+### Install dependencies
 
 ```bash
 npm install
 ```
 
-### Configure Environment
+### Optional environment variables
+
+Create a `.env` file when needed:
 
 ```env
 DATABASE_URL=
-
-SESSION_SECRET=
+SESSION_SECRET=replace-with-a-long-random-value
 ```
 
-### Start Development Server
+`SESSION_SECRET` should be set for deployments. Development has a fallback value so the project can run locally without additional setup.
+
+### Start development server
 
 ```bash
 npm run dev
 ```
 
-Open
+Open:
 
-```
+```text
 http://localhost:5030
 ```
 
----
+The development server automatically probes nearby ports if the default port is busy.
 
-# ☁️ Deployment
-
-Hosted on **Render**
-
-### Build
+## Available scripts
 
 ```bash
-npm install
+npm run dev       # Start the Express/Vite development server
+npm run check     # Run TypeScript validation
+npm run build     # Build the client and production server bundle
+npm run start     # Start the production bundle
+npm run db:push   # Push the Drizzle schema to PostgreSQL
 ```
 
-### Start
+## Database note
+
+The repository includes Drizzle/PostgreSQL schema definitions for users, resumes, job postings, job skills, student profiles, and analysis reports.
+
+The current development storage implementation is `MemStorage` in [server/storage.ts](./server/storage.ts). This makes the application runnable without a provisioned database, but data is reset when the development process restarts. A production deployment should connect the schema to a persistent PostgreSQL storage implementation before relying on long-term student data.
+
+## Security behavior
+
+- Protected student endpoints require an authenticated session.
+- Resume and analysis queries are scoped to the authenticated user ID.
+- Students cannot request another student's resume or analysis report.
+- Job postings are addressed by exact `job_id`.
+- Passwords are hashed with Node.js `scrypt`.
+- Session cookies are HTTP-only.
+- Role checks are enforced server-side for officer-only endpoints.
+- Secrets belong in environment variables and should never be committed.
+
+## Validation
+
+Before submitting changes, run:
 
 ```bash
-npm run dev
+npm run check
+npm run build
+git diff --check
 ```
 
-Live Demo
+## Current limitations and next steps
 
-https://resume-builder-and-ats-tracker-1.onrender.com
-
----
-
-# 🔮 Future Improvements
-
-- AI Resume Rewrite
-- Multi-language Resume Generation
-- LinkedIn Profile Import
-- Cover Letter Generator
-- Resume Version Management
-- Recruiter Dashboard
-- Resume Analytics
-- Cloud Resume Storage
-
----
-
-# 🎤 Talking Points
-
-### Why React + TypeScript?
-
-Provides a scalable, component-based architecture with strong type safety and improved maintainability.
-
-### Why PostgreSQL?
-
-Ensures reliable relational storage for user accounts, resumes, and ATS reports while supporting structured queries and future scalability.
-
-### Why Passport.js?
-
-Simplifies authentication by supporting traditional email/password login and secure sessions through a well-established middleware ecosystem.
-
-### Biggest Challenge
-
-Implementing accurate ATS scoring while maintaining compatibility with real-world resume formats such as PDF and DOCX.
-
-### Optimizations
-
-- Improved document parsing performance
-- Efficient keyword matching
-- Modular architecture
-- Reusable UI components
-- Future support for caching and AI-powered semantic scoring
-
----
+- Replace `MemStorage` with persistent PostgreSQL repositories for production.
+- Add the full placement officer JSON import and validation UI.
+- Add persistent learning activity tracking.
+- Add complete section-by-section profile editing.
+- Add automated end-to-end browser tests for Student A/Student B data isolation.
+- Add production deployment configuration and migrations.
