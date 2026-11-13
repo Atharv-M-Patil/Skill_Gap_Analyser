@@ -26,15 +26,30 @@ function normalizeSkill(skill: string) {
   return skillAliases[cleaned] || cleaned;
 }
 
+function isValidSkill(skill: string) {
+  const normalized = normalizeSkill(skill);
+  return normalized.length > 1
+    && !["not identified", "not identified yet", "n/a", "na", "none", "null", "undefined"].includes(normalized);
+}
+
 function skillsFromJobDescription(description: string) {
   const required: string[] = [];
   const requiredPattern = /(?:Hands-on with|Strong knowledge of)\s+([^\n]+)/gi;
   let match: RegExpExecArray | null;
   while ((match = requiredPattern.exec(description))) {
-    required.push(match[1].trim().replace(/[.]$/, ""));
+    const skill = match[1].trim().replace(/[.]$/, "");
+    if (isValidSkill(skill)) required.push(skill);
   }
-  const preferred = description.split(/Good to Have:/i)[1]?.split("\n").map((line) => line.replace(/^- /, "").trim()).filter(Boolean) || [];
-  return { required: Array.from(new Set(required)), preferred: Array.from(new Set(preferred)) };
+  const preferred = description.split(/Good to Have:/i)[1]?.split("\n")
+    .map((line) => line.replace(/^- /, "").trim())
+    .filter(isValidSkill) || [];
+  const unique = (skills: string[]) => Array.from(new Map(skills.map((skill) => [normalizeSkill(skill), skill])).values());
+  const requiredSkills = unique(required);
+  const requiredNames = new Set(requiredSkills.map(normalizeSkill));
+  return {
+    required: requiredSkills,
+    preferred: unique(preferred).filter((skill) => !requiredNames.has(normalizeSkill(skill))),
+  };
 }
 
 function profileSkills(data: Record<string, unknown>) {
@@ -67,6 +82,7 @@ function buildAnalysis(job: Awaited<ReturnType<typeof storage.getJobPosting>>, r
   const resumeData = (resume.data || {}) as Record<string, unknown>;
   const resumeText = String(resumeData.extractedText || "").toLowerCase();
   const explicitSkills = profileSkills((profile?.data || {}) as Record<string, unknown>);
+  const profileText = Array.from(explicitSkills).join(" ");
   const evidenceFor = (skill: string) => {
     const normalized = normalizeSkill(skill);
     if (explicitSkills.has(normalized)) return "Explicitly listed in your profile.";
@@ -85,7 +101,10 @@ function buildAnalysis(job: Awaited<ReturnType<typeof storage.getJobPosting>>, r
   const requiredScore = required.length ? (required.filter((skill) => explicitSkills.has(normalizeSkill(skill))).length + required.filter((skill) => !explicitSkills.has(normalizeSkill(skill)) && evidenceFor(skill)).length * 0.5) / required.length : 0;
   const preferredScore = preferred.length ? (preferred.filter((skill) => explicitSkills.has(normalizeSkill(skill))).length + preferred.filter((skill) => !explicitSkills.has(normalizeSkill(skill)) && evidenceFor(skill)).length * 0.5) / preferred.length : requiredScore;
   const keywordList = [...required, ...preferred];
-  const keywordMatches = keywordList.filter((skill) => resumeText.includes(normalizeSkill(skill)));
+  const keywordMatches = keywordList.filter((skill) => {
+    const normalized = normalizeSkill(skill);
+    return resumeText.includes(normalized) || profileText.includes(normalized);
+  });
   const keywordCoverage = keywordList.length ? Math.round((keywordMatches.length / keywordList.length) * 100) : 0;
   const skillMatchScore = Math.round((requiredScore * 80 + preferredScore * 20) * 100) / 100;
   const atsScore = Math.round((keywordCoverage * 0.6) + (skillMatchScore * 0.4));
@@ -93,7 +112,11 @@ function buildAnalysis(job: Awaited<ReturnType<typeof storage.getJobPosting>>, r
   const educationText = `${profileData.education?.degree || ""} ${profileData.education?.branch || ""}`.toLowerCase();
   return {
     atsScore, skillMatchScore, matchedSkills, partialSkills, missingSkills, keywordCoverage,
-    keywordMatches, missingKeywords: keywordList.filter((skill) => !resumeText.includes(normalizeSkill(skill))),
+    keywordMatches,
+    missingKeywords: keywordList.filter((skill) => {
+      const normalized = normalizeSkill(skill);
+      return !resumeText.includes(normalized) && !profileText.includes(normalized);
+    }),
     eligibility: {
       degree: educationText ? (job.education.toLowerCase().includes("b.tech") && /b\.?tech|b\.?e|mca/.test(educationText) ? "Potentially eligible" : "Unknown / verify degree") : "Unknown / insufficient information",
       branch: educationText ? (/computer|software|information|it/.test(educationText) ? "Potentially eligible" : "Unknown / verify branch") : "Unknown / insufficient information",
@@ -159,6 +182,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   const demoAuthEnabled = process.env.NODE_ENV !== "production";
   const localAuthEnabled = true;
+  const secureCookies = process.env.COOKIE_SECURE === "true";
 
   const MemoryStore = createMemoryStore(session);
   const sessionSecret = process.env.SESSION_SECRET || "dev-session-secret-change-me";
@@ -175,7 +199,7 @@ export async function registerRoutes(
       cookie: {
         httpOnly: true,
         sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+        secure: secureCookies,
         maxAge: 7 * 24 * 60 * 60 * 1000,
       },
     }),
