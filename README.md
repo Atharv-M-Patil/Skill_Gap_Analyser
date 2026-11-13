@@ -166,6 +166,32 @@ sequenceDiagram
     Client-->>Student: Scores, gaps, eligibility, and next steps
 ```
 
+### Database and storage status
+
+The project has a **PostgreSQL database design**, but the running application currently
+uses **in-memory storage**:
+
+| Area | Currently used | How it works |
+|---|---|---|
+| Application runtime | `MemStorage` (`server/storage.ts`) | Users, resumes, student profiles, and analysis reports are stored in JavaScript `Map` objects while the server is running. |
+| Job data | `Data/job_postings_dataset.json` | The 150 job postings are read from this JSON file when the server starts and loaded into memory. |
+| Database schema | PostgreSQL through Drizzle ORM | `shared/schema.ts` defines PostgreSQL tables, relationships, JSONB fields, timestamps, and cascading deletes. |
+| Database connection | `DATABASE_URL` | Used by Drizzle Kit for database commands such as `npm run db:push`; the current runtime storage adapter does not connect to PostgreSQL. |
+| Sessions | In-memory session store | Login sessions also reset when the server restarts. |
+
+#### Current request flow
+
+1. The React client sends an API request to the Express server.
+2. The route calls the `IStorage` interface in `server/storage.ts`.
+3. The current `MemStorage` implementation reads or updates in-memory maps.
+4. Analysis combines the selected job, the student's resume, and profile data.
+5. The generated report is returned to the client and stored in memory for analysis history.
+
+Because PostgreSQL is not yet wired to the runtime storage adapter, registered users,
+resumes, profiles, and reports are lost after a restart or redeploy. To make this data
+persistent, a PostgreSQL-backed implementation of `IStorage` must be added and used by
+the server.
+
 ---
 
 ## 4. Personalized analysis model
